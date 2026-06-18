@@ -66,6 +66,8 @@ OVERLAY_DATA_ATTRS = [
 
 def _has_nuke_pattern(element: Tag) -> bool:
     """Check class/id/data attributes against nuke patterns."""
+    if element.attrs is None:
+        return False
     for attr_name in ("id", "class", "data-component", "data-module", "role"):
         vals = element.get(attr_name)
         if vals is None:
@@ -81,6 +83,8 @@ def _has_nuke_pattern(element: Tag) -> bool:
 
 def _is_overlay_by_style(element: Tag) -> bool:
     """Check inline style for fixed/sticky positioning or high z-index."""
+    if element.attrs is None:
+        return False
     style = element.get("style", "")
     if not style:
         return False
@@ -89,6 +93,8 @@ def _is_overlay_by_style(element: Tag) -> bool:
 
 def _is_overlay_by_data(element: Tag) -> bool:
     """Check data attributes."""
+    if element.attrs is None:
+        return False
     for attr in element.attrs:
         if any(p.search(attr) for p in OVERLAY_DATA_ATTRS):
             return True
@@ -97,6 +103,8 @@ def _is_overlay_by_data(element: Tag) -> bool:
 
 def _is_visible(element: Tag) -> bool:
     """Quick check: element not hidden."""
+    if element.attrs is None:
+        return True  # can't determine visibility, keep it
     style = element.get("style", "") or ""
     if re.search(r"display\s*:\s*none", style, re.I):
         return False
@@ -174,6 +182,8 @@ def strip_page(html: str, base_url: str) -> str:
                        ("script", "src"), ("source", "src"), ("video", "src"),
                        ("audio", "src"), ("iframe", "src")]:
         for element in soup.find_all(tag):
+            if element.attrs is None:
+                continue
             val = element.get(attr)
             if val and not val.startswith(("http://", "https://", "//", "data:", "#", "javascript:")):
                 if val.startswith("//"):

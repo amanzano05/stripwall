@@ -18,7 +18,7 @@ android {
         // ── Backend host URL ─────────────────────────────────────────
         // Change this to your server's public IP/domain after deployment.
         // For local dev: "http://10.0.2.2:8150" (Android emulator → host)
-        buildConfigField("String", "BACKEND_HOST", "\"http://10.0.2.2:8150\"")
+        buildConfigField("String", "BACKEND_HOST", "\"https://stripwall.amago.fyi\"")
     }
 
     buildFeatures {

@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -151,85 +152,12 @@ fun StripWallScreen(initialUrl: String?) {
             )
         }
     ) { paddingValues ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // ── URL Input Bar ────────────────────────────────────────
-            Surface(
-                tonalElevation = 2.dp,
-                color = MaterialTheme.colorScheme.surface,
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    OutlinedTextField(
-                        value = inputUrl,
-                        onValueChange = { inputUrl = it },
-                        placeholder = { Text("https://example.com/article", fontSize = 14.sp) },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Uri,
-                            imeAction = ImeAction.Go,
-                        ),
-                        keyboardActions = KeyboardActions(
-                            onGo = {
-                                val url = inputUrl.trim()
-                                if (url.isNotEmpty()) {
-                                    currentUrl = url
-                                    loadInWebView(webView, url)
-                                }
-                            }
-                        ),
-                        trailingIcon = {
-                            if (inputUrl.isNotEmpty()) {
-                                IconButton(onClick = { inputUrl = "" }) {
-                                    Icon(Icons.Default.Clear, "Clear")
-                                }
-                            }
-                        }
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            val url = inputUrl.trim()
-                            if (url.isNotEmpty()) {
-                                currentUrl = url
-                                loadInWebView(webView, url)
-                            }
-                        },
-                        enabled = inputUrl.isNotBlank() && backendStatus != BackendState.Offline,
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                    ) {
-                        if (backendStatus == BackendState.Checking) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                            )
-                        } else {
-                            Text("Go")
-                        }
-                    }
-                }
-            }
-
-            // ── Loading indicator ────────────────────────────────────
-            AnimatedVisibility(visible = isLoading) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-
-            // ── WebView ──────────────────────────────────────────────
+            // ── WebView (full screen, behind overlay) ──────────────
             Box(modifier = Modifier.fillMaxSize()) {
                 AndroidView(
                     factory = { ctx ->
@@ -249,7 +177,6 @@ fun StripWallScreen(initialUrl: String?) {
                                 setSupportZoom(true)
                                 allowFileAccess = false
                                 allowContentAccess = false
-                                // Mimic a desktop user-agent for better rendering
                                 userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
                             }
 
@@ -260,13 +187,16 @@ fun StripWallScreen(initialUrl: String?) {
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     isLoading = false
+                                    view?.evaluateJavascript(
+                                        "document.body.style.paddingTop = '56px';",
+                                        null
+                                    )
                                 }
 
                                 override fun shouldOverrideUrlLoading(
                                     view: WebView?,
                                     request: WebResourceRequest?
                                 ): Boolean {
-                                    // Stay within the WebView
                                     return false
                                 }
 
@@ -295,13 +225,101 @@ fun StripWallScreen(initialUrl: String?) {
 
                             webView = this
 
-                            // If initialized with a URL, load it immediately
                             currentUrl?.let { url ->
                                 loadStripWallUrl(this, url)
                             }
                         }
                     },
                     modifier = Modifier.fillMaxSize(),
+                )
+            }
+
+            // ── URL bar overlay (top) ─────────────────────────────
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .background(Color(0xFF2D2D2D))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedTextField(
+                    value = inputUrl,
+                    onValueChange = { inputUrl = it },
+                    placeholder = {
+                        Text(
+                            "Paste article URL...",
+                            fontSize = 14.sp,
+                            color = Color(0xFFB0B0B0),
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp),
+                    textStyle = TextStyle(color = Color(0xFFE8EAED)),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFF8AB4F8),
+                        unfocusedBorderColor = Color(0xFF5F6368),
+                        cursorColor = Color(0xFF8AB4F8),
+                        focusedContainerColor = Color(0xFF1E1E1E),
+                        unfocusedContainerColor = Color(0xFF1E1E1E),
+                    ),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Uri,
+                        imeAction = ImeAction.Go,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onGo = {
+                            val url = inputUrl.trim()
+                            if (url.isNotEmpty()) {
+                                currentUrl = url
+                                loadInWebView(webView, url)
+                            }
+                        }
+                    ),
+                    trailingIcon = {
+                        if (inputUrl.isNotEmpty()) {
+                            IconButton(onClick = { inputUrl = "" }) {
+                                Icon(Icons.Default.Clear, "Clear", tint = Color(0xFFB0B0B0))
+                            }
+                        }
+                    },
+                )
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        val url = inputUrl.trim()
+                        if (url.isNotEmpty()) {
+                            currentUrl = url
+                            loadInWebView(webView, url)
+                        }
+                    },
+                    enabled = inputUrl.isNotBlank() && backendStatus != BackendState.Offline,
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                ) {
+                    if (backendStatus == BackendState.Checking) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                    } else {
+                        Text("Go")
+                    }
+                }
+            }
+
+            // ── Loading indicator (below URL bar) ─────────────────
+            AnimatedVisibility(
+                visible = isLoading,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 52.dp),
+            ) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.primary,
                 )
             }
         }
