@@ -18,9 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,14 +26,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.webkit.WebViewAssetLoader
 import com.stripwall.app.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,10 +44,7 @@ import java.util.concurrent.TimeUnit
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Grab URL from share intent
         val sharedUrl = extractSharedUrl(intent)
-
         setContent {
             StripWallTheme {
                 StripWallScreen(initialUrl = sharedUrl)
@@ -60,7 +54,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        // Handle share-intent while activity already running
+        // Re-check for share-intent when activity already running
     }
 
     private fun extractSharedUrl(intent: Intent?): String? {
@@ -68,8 +62,7 @@ class MainActivity : ComponentActivity() {
             return intent.getStringExtra(Intent.EXTRA_TEXT)
                 ?.trim()
                 ?.split(" ")
-                ?.firstOrNull { it.startsWith("http")
-            }
+                ?.firstOrNull { it.startsWith("http") }
         }
         return null
     }
@@ -103,13 +96,18 @@ fun StripWallTheme(content: @Composable () -> Unit) {
 fun StripWallScreen(initialUrl: String?) {
     var inputUrl by remember { mutableStateOf(initialUrl ?: "") }
     var currentUrl by remember { mutableStateOf<String?>(null) }
+    var displayUrl by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var backendStatus by remember { mutableStateOf<BackendState>(BackendState.Unknown) }
+    var canGoBack by remember { mutableStateOf(false) }
+    var canGoForward by remember { mutableStateOf(false) }
+    var cleanupMode by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val focusManager = LocalFocusManager.current
 
     // Check backend health on launch
     LaunchedEffect(Unit) {
@@ -118,38 +116,167 @@ fun StripWallScreen(initialUrl: String?) {
         backendStatus = if (ok) BackendState.Online else BackendState.Offline
     }
 
+    // ── Navigate ────────────────────────────────────────────────────
+    fun navigate(url: String) {
+        val cleanUrl = url.trim().let {
+            if (!it.startsWith("http")) "https://$it" else it
+        }
+        currentUrl = cleanUrl
+        displayUrl = cleanUrl
+        val proxyUrl = buildProxyUrl(cleanUrl)
+        webView?.loadUrl(proxyUrl)
+        focusManager.clearFocus()
+    }
+
+    // ── Toggle cleanup ──────────────────────────────────────────────
+    fun toggleCleanup() {
+        cleanupMode = !cleanupMode
+        val js = if (cleanupMode) {
+            // Find the clean button in the injected toolbar and click it
+            """(function(){
+                var btn = document.getElementById('sw-btn');
+                if(btn) { btn.click(); return 'toggled'; }
+                return 'no-toolbar';
+            })();"""
+        } else {
+            // If we turned it off, also try clicking button to sync
+            """(function(){
+                var btn = document.getElementById('sw-btn');
+                var isActive = btn && btn.classList.contains('sw-active');
+                if(isActive) { btn.click(); return 'deactivated'; }
+                return 'already-off';
+            })();"""
+        }
+        webView?.evaluateJavascript(js, null)
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("StripWall", fontWeight = FontWeight.Bold) },
+                title = {
+                    Text("StripWall", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
                 ),
                 actions = {
-                    // Backend status indicator
                     BackendIndicator(backendStatus)
-                    // Reload current page
-                    IconButton(onClick = {
-                        currentUrl?.let { url ->
-                            loadInWebView(webView, url)
-                        }
-                    }) {
-                        Icon(Icons.Default.Refresh, "Reload")
-                    }
-                    // Open original URL in browser
-                    IconButton(onClick = {
-                        val originalUrl = inputUrl.trim().let { url ->
-                            if (!url.startsWith("http")) "https://$url" else url
-                        }
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(originalUrl))
-                        context.startActivity(intent)
-                    }) {
-                        Icon(Icons.Default.OpenInNew, "Open original")
-                    }
                 }
             )
+        },
+        bottomBar = {
+            if (currentUrl != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 4.dp,
+                    shadowElevation = 8.dp,
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .navigationBarsPadding(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        // Back
+                        IconButton(
+                            onClick = { webView?.goBack(); updateNavState(webView, { canGoBack = it }, { canGoForward = it }) },
+                            enabled = canGoBack,
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(Icons.Default.ArrowBack, "Back", tint = if (canGoBack) Color(0xFFE8EAED) else Color(0xFF5F6368))
+                        }
+                        // Forward
+                        IconButton(
+                            onClick = { webView?.goForward(); updateNavState(webView, { canGoBack = it }, { canGoForward = it }) },
+                            enabled = canGoForward,
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(Icons.Default.ArrowForward, "Forward", tint = if (canGoForward) Color(0xFFE8EAED) else Color(0xFF5F6368))
+                        }
+
+                        // URL bar
+                        OutlinedTextField(
+                            value = displayUrl,
+                            onValueChange = { displayUrl = it },
+                            placeholder = { Text("URL...", fontSize = 12.sp, color = Color(0xFF5F6368)) },
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp),
+                            singleLine = true,
+                            shape = RoundedCornerShape(10.dp),
+                            textStyle = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFE8EAED), fontSize = 12.sp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF8AB4F8),
+                                unfocusedBorderColor = Color(0xFF3D3D3D),
+                                cursorColor = Color(0xFF8AB4F8),
+                                focusedContainerColor = Color(0xFF0D1117),
+                                unfocusedContainerColor = Color(0xFF0D1117),
+                            ),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Uri,
+                                imeAction = ImeAction.Go,
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onGo = {
+                                    navigate(displayUrl)
+                                }
+                            ),
+                        )
+
+                        Spacer(Modifier.width(4.dp))
+
+                        // Go button
+                        FilledTonalButton(
+                            onClick = { navigate(displayUrl) },
+                            enabled = displayUrl.isNotBlank() && backendStatus != BackendState.Offline,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier.height(36.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = Color(0xFF2D2D2D)),
+                        ) {
+                            Text("Ir", fontSize = 12.sp, color = Color(0xFFE8EAED))
+                        }
+
+                        Spacer(Modifier.width(4.dp))
+
+                        // Clean toggle
+                        FilledTonalButton(
+                            onClick = { toggleCleanup() },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                            modifier = Modifier.height(36.dp),
+                            shape = RoundedCornerShape(10.dp),
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = if (cleanupMode) Color(0xFFF28B82) else Color(0xFF2D2D2D)
+                            ),
+                        ) {
+                            Text(
+                                if (cleanupMode) "✔" else "✂",
+                                fontSize = 14.sp,
+                                color = if (cleanupMode) Color.White else Color(0xFFE8EAED),
+                            )
+                        }
+
+                        Spacer(Modifier.width(4.dp))
+
+                        // Home
+                        IconButton(
+                            onClick = {
+                                currentUrl = null
+                                displayUrl = ""
+                                inputUrl = ""
+                                cleanupMode = false
+                                webView?.loadUrl("about:blank")
+                            },
+                            modifier = Modifier.size(36.dp),
+                        ) {
+                            Icon(Icons.Default.Home, "Home", tint = Color(0xFF9AA0A6))
+                        }
+                    }
+                }
+            }
         }
     ) { paddingValues ->
         Box(
@@ -157,170 +284,248 @@ fun StripWallScreen(initialUrl: String?) {
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            // ── WebView (full screen, behind overlay) ──────────────
-            Box(modifier = Modifier.fillMaxSize()) {
-                AndroidView(
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT,
+            if (currentUrl == null) {
+                // ── Home screen ─────────────────────────────────────────
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        "⚡ StripWall",
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF8AB4F8),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Navegá sin paywalls ni popups",
+                        fontSize = 14.sp,
+                        color = Color(0xFF9AA0A6),
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    OutlinedTextField(
+                        value = inputUrl,
+                        onValueChange = { inputUrl = it },
+                        placeholder = {
+                            Text(
+                                "URL del artículo",
+                                fontSize = 14.sp,
+                                color = Color(0xFF5F6368),
                             )
-
-                            settings.apply {
-                                javaScriptEnabled = true
-                                domStorageEnabled = true
-                                loadWithOverviewMode = true
-                                useWideViewPort = true
-                                builtInZoomControls = true
-                                displayZoomControls = false
-                                setSupportZoom(true)
-                                allowFileAccess = false
-                                allowContentAccess = false
-                                userAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = Color(0xFFE8EAED)),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF8AB4F8),
+                            unfocusedBorderColor = Color(0xFF3D3D3D),
+                            cursorColor = Color(0xFF8AB4F8),
+                            focusedContainerColor = Color(0xFF1E1E1E),
+                            unfocusedContainerColor = Color(0xFF1E1E1E),
+                        ),
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = KeyboardType.Uri,
+                            imeAction = ImeAction.Go,
+                        ),
+                        keyboardActions = KeyboardActions(
+                            onGo = { navigate(inputUrl) }
+                        ),
+                        trailingIcon = {
+                            if (inputUrl.isNotEmpty()) {
+                                IconButton(onClick = { inputUrl = "" }) {
+                                    Icon(Icons.Default.Clear, "Clear", tint = Color(0xFF5F6368))
+                                }
                             }
+                        },
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = { navigate(inputUrl) },
+                        enabled = inputUrl.isNotBlank() && backendStatus != BackendState.Offline,
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8AB4F8)),
+                    ) {
+                        if (backendStatus == BackendState.Checking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = Color(0xFF0D1117),
+                            )
+                        } else {
+                            Text("Ir", fontWeight = FontWeight.Bold, color = Color(0xFF0D1117))
+                        }
+                    }
 
-                            webViewClient = object : WebViewClient() {
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                    isLoading = true
+                    if (backendStatus == BackendState.Offline) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "⚠ Servidor no disponible. Revisá tu conexión.",
+                            fontSize = 12.sp,
+                            color = Color(0xFFF28B82),
+                        )
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+                    Text(
+                        "Compartí un enlace desde cualquier app\npara abrirlo directamente en StripWall.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF5F6368),
+                        lineHeight = 18.sp,
+                    )
+                }
+            } else {
+                // ── WebView (full screen) ───────────────────────────
+                Box(modifier = Modifier.fillMaxSize()) {
+                    AndroidView(
+                        factory = { ctx ->
+                            WebView(ctx).apply {
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                )
+
+                                settings.apply {
+                                    javaScriptEnabled = true
+                                    domStorageEnabled = true
+                                    loadWithOverviewMode = true
+                                    useWideViewPort = true
+                                    builtInZoomControls = true
+                                    displayZoomControls = false
+                                    setSupportZoom(true)
+                                    allowFileAccess = false
+                                    allowContentAccess = false
+                                    userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Mobile Safari/537.36"
                                 }
 
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    isLoading = false
-                                    view?.evaluateJavascript(
-                                        "document.body.style.paddingTop = '56px';",
-                                        null
-                                    )
-                                }
+                                webViewClient = object : WebViewClient() {
+                                    override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                                        isLoading = true
+                                    }
 
-                                override fun shouldOverrideUrlLoading(
-                                    view: WebView?,
-                                    request: WebResourceRequest?
-                                ): Boolean {
-                                    return false
-                                }
-
-                                override fun onReceivedError(
-                                    view: WebView?,
-                                    errorCode: Int,
-                                    description: String?,
-                                    failingUrl: String?
-                                ) {
-                                    isLoading = false
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            "Error ($errorCode): ${description ?: "Unknown"}",
-                                            duration = SnackbarDuration.Long,
+                                    override fun onPageFinished(view: WebView?, url: String?) {
+                                        isLoading = false
+                                        // Update navigation state
+                                        view?.let { v ->
+                                            canGoBack = v.canGoBack()
+                                            canGoForward = v.canGoForward()
+                                        }
+                                        // Extract real URL from proxy URL
+                                        val realUrl = extractRealUrl(url)
+                                        if (realUrl != null) {
+                                            displayUrl = realUrl
+                                        } else if (url != null) {
+                                            displayUrl = url
+                                        }
+                                        // Re-apply padding for bottom toolbar
+                                        view?.evaluateJavascript(
+                                            "document.body.style.paddingBottom = '52px';",
+                                            null
                                         )
                                     }
+
+                                    override fun shouldOverrideUrlLoading(
+                                        view: WebView?,
+                                        request: WebResourceRequest?
+                                    ): Boolean {
+                                        val url = request?.url?.toString() ?: return false
+                                        val host = Uri.parse(url).host ?: return false
+
+                                        // Always let our own domain load normally
+                                        if (host.contains("stripwall.amago.fyi")) {
+                                            return false
+                                        }
+
+                                        // Intercept external URLs and route through proxy
+                                        val proxyUrl = buildProxyUrl(url)
+                                        view?.loadUrl(proxyUrl)
+                                        return true
+                                    }
+
+                                    override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
+                                        view?.let { v ->
+                                            canGoBack = v.canGoBack()
+                                            canGoForward = v.canGoForward()
+                                        }
+                                        val realUrl = extractRealUrl(url)
+                                        if (realUrl != null) {
+                                            displayUrl = realUrl
+                                        } else if (url != null) {
+                                            displayUrl = url
+                                        }
+                                    }
+
+                                    override fun onReceivedError(
+                                        view: WebView?,
+                                        errorCode: Int,
+                                        description: String?,
+                                        failingUrl: String?
+                                    ) {
+                                        isLoading = false
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                "Error ($errorCode): ${description ?: "Unknown"}",
+                                                duration = SnackbarDuration.Long,
+                                            )
+                                        }
+                                    }
+                                }
+
+                                webChromeClient = object : WebChromeClient() {
+                                    override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                        if (newProgress < 100) isLoading = true
+                                        else isLoading = false
+                                    }
+                                }
+
+                                webView = this
+
+                                // Load initial URL if set
+                                currentUrl?.let { url ->
+                                    val proxyUrl = buildProxyUrl(url)
+                                    loadUrl(proxyUrl)
                                 }
                             }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
 
-                            webChromeClient = object : WebChromeClient() {
-                                override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                    if (newProgress < 100) isLoading = true
-                                    else isLoading = false
-                                }
-                            }
-
-                            webView = this
-
-                            currentUrl?.let { url ->
-                                loadStripWallUrl(this, url)
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-
-            // ── URL bar overlay (top) ─────────────────────────────
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .background(Color(0xFF2D2D2D))
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedTextField(
-                    value = inputUrl,
-                    onValueChange = { inputUrl = it },
-                    placeholder = {
-                        Text(
-                            "Paste article URL...",
-                            fontSize = 14.sp,
-                            color = Color(0xFFB0B0B0),
+                    // Loading bar (top)
+                    AnimatedVisibility(
+                        visible = isLoading,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    ) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.primary,
                         )
-                    },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    textStyle = TextStyle(color = Color(0xFFE8EAED)),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(0xFF8AB4F8),
-                        unfocusedBorderColor = Color(0xFF5F6368),
-                        cursorColor = Color(0xFF8AB4F8),
-                        focusedContainerColor = Color(0xFF1E1E1E),
-                        unfocusedContainerColor = Color(0xFF1E1E1E),
-                    ),
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri,
-                        imeAction = ImeAction.Go,
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onGo = {
-                            val url = inputUrl.trim()
-                            if (url.isNotEmpty()) {
-                                currentUrl = url
-                                loadInWebView(webView, url)
-                            }
+                    }
+
+                    // Floating hint when cleanup mode is on
+                    if (cleanupMode) {
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 8.dp),
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color(0xFFF28B82).copy(alpha = 0.9f),
+                            shadowElevation = 4.dp,
+                        ) {
+                            Text(
+                                "Tocá elementos para eliminarlos · ← para salir",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                fontSize = 12.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Medium,
+                            )
                         }
-                    ),
-                    trailingIcon = {
-                        if (inputUrl.isNotEmpty()) {
-                            IconButton(onClick = { inputUrl = "" }) {
-                                Icon(Icons.Default.Clear, "Clear", tint = Color(0xFFB0B0B0))
-                            }
-                        }
-                    },
-                )
-                Spacer(Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        val url = inputUrl.trim()
-                        if (url.isNotEmpty()) {
-                            currentUrl = url
-                            loadInWebView(webView, url)
-                        }
-                    },
-                    enabled = inputUrl.isNotBlank() && backendStatus != BackendState.Offline,
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                ) {
-                    if (backendStatus == BackendState.Checking) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    } else {
-                        Text("Go")
                     }
                 }
-            }
-
-            // ── Loading indicator (below URL bar) ─────────────────
-            AnimatedVisibility(
-                visible = isLoading,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 52.dp),
-            ) {
-                LinearProgressIndicator(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primary,
-                )
             }
         }
     }
@@ -354,27 +559,36 @@ fun BackendIndicator(state: BackendState) {
     }
 }
 
-
 // ── Backend communication ─────────────────────────────────────────────
 
 private fun getBackendHost(): String {
     return BuildConfig.BACKEND_HOST
 }
 
-private fun buildStripWallUrl(targetUrl: String): String {
-    val cleanTarget = targetUrl.trim().let { url ->
-        if (!url.startsWith("http")) "https://$url" else url
+private fun buildProxyUrl(targetUrl: String): String {
+    val cleanTarget = targetUrl.trim().let {
+        if (!it.startsWith("http")) "https://$it" else it
     }
-    return "${getBackendHost()}/fetch?url=${Uri.encode(cleanTarget)}"
+    return "${getBackendHost()}/proxy?url=${Uri.encode(cleanTarget)}"
 }
 
-private fun loadStripWallUrl(webView: WebView?, targetUrl: String) {
-    val stripWallUrl = buildStripWallUrl(targetUrl)
-    webView?.loadUrl(stripWallUrl)
+private fun extractRealUrl(proxyUrl: String?): String? {
+    if (proxyUrl == null) return null
+    val uri = Uri.parse(proxyUrl)
+    // Extract the `url` query parameter
+    val encodedUrl = uri.getQueryParameter("url") ?: return null
+    return Uri.decode(encodedUrl)
 }
 
-private fun loadInWebView(webView: WebView?, targetUrl: String) {
-    loadStripWallUrl(webView, targetUrl)
+private fun updateNavState(
+    webView: WebView?,
+    setBack: (Boolean) -> Unit,
+    setForward: (Boolean) -> Unit,
+) {
+    webView?.let { v ->
+        setBack(v.canGoBack())
+        setForward(v.canGoForward())
+    }
 }
 
 private suspend fun checkBackendHealth(): Boolean {

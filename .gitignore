@@ -19,3 +19,6 @@ android/local.properties
 Thumbs.db
 *.swp
 *.swo
+
+# Android APK artifacts
+*.idsig
