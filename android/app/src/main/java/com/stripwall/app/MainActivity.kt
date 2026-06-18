@@ -131,23 +131,75 @@ fun StripWallScreen(initialUrl: String?) {
     // ── Toggle cleanup ──────────────────────────────────────────────
     fun toggleCleanup() {
         cleanupMode = !cleanupMode
-        val js = if (cleanupMode) {
-            // Find the clean button in the injected toolbar and click it
-            """(function(){
-                var btn = document.getElementById('sw-btn');
-                if(btn) { btn.click(); return 'toggled'; }
-                return 'no-toolbar';
-            })();"""
+        if (cleanupMode) {
+            // Inject clean mode JS directly (no server toolbar in app mode)
+            val js = """
+(function(){
+  if (window.__swCleanupActive) return;
+  window.__swCleanupActive = true;
+  window.__swLastRemoved = [];
+
+  var style = document.createElement('style');
+  style.id = 'sw-cleanup-style';
+  style.textContent = '.sw-ch-over{outline:3px solid #F28B82!important;outline-offset:2px!important;cursor:crosshair!important}' +
+    '.sw-ch-rm{transition:all .2s ease!important;opacity:0!important;transform:scale(.95)!important}' +
+    'body.sw-ch-mode,body.sw-ch-mode *{cursor:crosshair!important}';
+  document.head.appendChild(style);
+  document.body.classList.add('sw-ch-mode');
+
+  document.addEventListener('mouseover', function(e) {
+    if (!window.__swCleanupActive) return;
+    document.querySelectorAll('.sw-ch-over').forEach(function(el){el.classList.remove('sw-ch-over')});
+    if (e.target !== document.body && e.target !== document.documentElement)
+      e.target.classList.add('sw-ch-over');
+  }, true);
+
+  document.addEventListener('click', function(e) {
+    if (!window.__swCleanupActive) return;
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    var el = e.target;
+    window.__swLastRemoved.push({p:el.parentNode, n:el.nextSibling});
+    el.classList.add('sw-ch-rm');
+    setTimeout(function(){if(el.parentNode) el.parentNode.removeChild(el);}, 200);
+  }, true);
+
+  document.addEventListener('touchstart', function(e) {
+    if (!window.__swCleanupActive) return;
+    e.preventDefault();
+  }, {passive:false});
+
+  document.addEventListener('touchend', function(e) {
+    if (!window.__swCleanupActive) return;
+    e.preventDefault();
+    var el = e.target;
+    window.__swLastRemoved.push({p:el.parentNode, n:el.nextSibling});
+    el.classList.add('sw-ch-rm');
+    setTimeout(function(){if(el.parentNode) el.parentNode.removeChild(el);}, 200);
+  }, {passive:false});
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'z' && (e.ctrlKey || e.metaKey) && window.__swCleanupActive) {
+      var last = window.__swLastRemoved.pop();
+      if (last && last.p) { last.p.insertBefore(last.n ? last.n : null, last.n); }
+    }
+    if (e.key === 'Escape' && window.__swCleanupActive) { toggleSWCleanup(); }
+  });
+
+  window.toggleSWCleanup = function() {
+    window.__swCleanupActive = false;
+    document.body.classList.remove('sw-ch-mode');
+    document.querySelectorAll('.sw-ch-over').forEach(function(el){el.classList.remove('sw-ch-over')});
+  };
+})();
+""".trimIndent()
+            webView?.evaluateJavascript(js, null)
         } else {
-            // If we turned it off, also try clicking button to sync
-            """(function(){
-                var btn = document.getElementById('sw-btn');
-                var isActive = btn && btn.classList.contains('sw-active');
-                if(isActive) { btn.click(); return 'deactivated'; }
-                return 'already-off';
-            })();"""
+            // Deactivate clean mode
+            webView?.evaluateJavascript(
+                "if(window.toggleSWCleanup) toggleSWCleanup();",
+                null
+            )
         }
-        webView?.evaluateJavascript(js, null)
     }
 
     Scaffold(
@@ -568,7 +620,7 @@ private fun buildProxyUrl(targetUrl: String): String {
     val cleanTarget = targetUrl.trim().let {
         if (!it.startsWith("http")) "https://$it" else it
     }
-    return "${getBackendHost()}/proxy?url=${Uri.encode(cleanTarget)}"
+    return "${getBackendHost()}/proxy?url=${Uri.encode(cleanTarget)}&app=1"
 }
 
 private fun extractRealUrl(proxyUrl: String?): String? {

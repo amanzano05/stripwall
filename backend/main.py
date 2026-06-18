@@ -472,7 +472,9 @@ PROXY_TOOLBAR = """
 
 # ── Proxy browser endpoint ───────────────────────────────────────────────
 @app.get("/proxy")
-async def proxy(url: str = Query(..., description="URL to browse through interactive proxy")):
+async def proxy(url: str = Query(..., description="URL to browse through interactive proxy"),
+                app: str = Query("0", description="Set to '1' to hide the toolbar (for Android app)")):
+    hide_toolbar = app == "1"
     if not url.startswith(("http://", "https://")):
         url = "https://" + url
     parsed = urlparse(url)
@@ -500,13 +502,14 @@ async def proxy(url: str = Query(..., description="URL to browse through interac
     else:
         raw_html = raw_html.replace("<head>", "<head>" + base_tag, 1)
 
-    # ── Inject toolbar before </body> ──
-    toolbar = PROXY_TOOLBAR.replace("__CURRENT_URL__", final_url)
-    body_close = raw_html.lower().rfind("</body>")
-    if body_close != -1:
-        raw_html = raw_html[:body_close] + toolbar + raw_html[body_close:]
-    else:
-        raw_html += toolbar
+    # ── Inject toolbar before </body> (skip for app mode) ──
+    if not hide_toolbar:
+        toolbar = PROXY_TOOLBAR.replace("__CURRENT_URL__", final_url)
+        body_close = raw_html.lower().rfind("</body>")
+        if body_close != -1:
+            raw_html = raw_html[:body_close] + toolbar + raw_html[body_close:]
+        else:
+            raw_html += toolbar
 
     # ── Rewrite links to stay inside the proxy ──
     raw_html = _rewrite_links(raw_html, final_url)
