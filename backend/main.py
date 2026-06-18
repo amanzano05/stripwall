@@ -60,6 +60,7 @@ async def _fetch(url: str) -> tuple[str, str]:
         headers={
             "User-Agent": USER_AGENTS[uuid.uuid4().int % len(USER_AGENTS)],
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Encoding": "gzip, deflate",
             "Accept-Language": "en-US,en;q=0.9,es;q=0.8",
             "Referer": "https://www.google.com/",
         },
