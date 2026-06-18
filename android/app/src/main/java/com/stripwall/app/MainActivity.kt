@@ -268,7 +268,6 @@ fun StripWallScreen(initialUrl: String?) {
                                 displayUrl = ""
                                 inputUrl = ""
                                 cleanupMode = false
-                                webView?.loadUrl("about:blank")
                             },
                             modifier = Modifier.size(36.dp),
                         ) {
