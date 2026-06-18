@@ -94,13 +94,64 @@ async def fetch_url(url: str = Query(..., description="Target URL to fetch and s
     return HTMLResponse(content=clean)
 
 
+# ── Root page: simple URL input for mobile ────────────────────────────
+ROOT_PAGE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StripWall</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #121212; color: #E8EAED; display: flex;
+    justify-content: center; align-items: center; min-height: 100vh; padding: 24px;
+  }
+  .card { background: #1E1E1E; border-radius: 16px; padding: 32px; max-width: 480px; width: 100%; }
+  h1 { font-size: 24px; margin-bottom: 4px; color: #8AB4F8; }
+  p.sub { color: #9AA0A6; font-size: 13px; margin-bottom: 20px; }
+  form { display: flex; gap: 8px; }
+  input {
+    flex: 1; background: #0D1117; border: 1px solid #3D3D3D; border-radius: 10px;
+    padding: 12px 16px; color: #E8EAED; font-size: 14px; outline: none;
+  }
+  input:focus { border-color: #8AB4F8; }
+  input::placeholder { color: #5F6368; }
+  button {
+    background: #8AB4F8; color: #0D1117; border: none; border-radius: 10px;
+    padding: 12px 20px; font-size: 14px; font-weight: 700; cursor: pointer;
+  }
+  button:hover { background: #9DC3FA; }
+  .footer { margin-top: 20px; font-size: 12px; color: #5F6368; text-align: center; }
+  .footer a { color: #8AB4F8; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>⚡ StripWall</h1>
+  <p class="sub">Pega el URL de un artículo para leerlo sin paywall</p>
+  <form action="/go" method="get">
+    <input type="url" name="url" placeholder="https://ejemplo.com/articulo" required autofocus>
+    <button type="submit">Go</button>
+  </form>
+  <div class="footer">O usá <a href="/bookmark">el bookmarklet</a> en desktop</div>
+</div>
+</body>
+</html>"""
+
+
 @app.get("/")
 async def root():
-    return {
-        "service": "StripWall",
-        "usage": "GET /fetch?url=https://example.com/article",
-        "version": "1.0.0",
-    }
+    return HTMLResponse(content=ROOT_PAGE, status_code=200)
+
+
+# ── Go redirect: /go?url=... → /fetch?url=... ────────────────────────
+@app.get("/go")
+async def go(url: str = Query(...)):
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    return RedirectResponse(url=f"/fetch?url={url}")
 
 
 # ── Health check for Android app connectivity test ──────────────────────
