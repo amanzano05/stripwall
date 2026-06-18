@@ -27,7 +27,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -96,7 +99,7 @@ fun StripWallTheme(content: @Composable () -> Unit) {
 fun StripWallScreen(initialUrl: String?) {
     var inputUrl by remember { mutableStateOf(initialUrl ?: "") }
     var currentUrl by remember { mutableStateOf<String?>(null) }
-    var displayUrl by remember { mutableStateOf("") }
+    var displayUrl by remember { mutableStateOf(TextFieldValue("")) }
     var isLoading by remember { mutableStateOf(false) }
     var webView by remember { mutableStateOf<WebView?>(null) }
     var backendStatus by remember { mutableStateOf<BackendState>(BackendState.Unknown) }
@@ -122,7 +125,7 @@ fun StripWallScreen(initialUrl: String?) {
             if (!it.startsWith("http")) "https://$it" else it
         }
         currentUrl = cleanUrl
-        displayUrl = cleanUrl
+        displayUrl = TextFieldValue(cleanUrl, TextRange(cleanUrl.length))
         val proxyUrl = buildProxyUrl(cleanUrl)
         webView?.loadUrl(proxyUrl)
         focusManager.clearFocus()
@@ -256,7 +259,10 @@ fun StripWallScreen(initialUrl: String?) {
                             placeholder = { Text("URL...", fontSize = 13.sp, color = Color(0xFF5F6368)) },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(48.dp),
+                                .height(48.dp)
+                                .onFocusChanged { if (it.isFocused && displayUrl.text.isNotEmpty()) {
+                                    displayUrl = displayUrl.copy(selection = TextRange(0, displayUrl.text.length))
+                                } },
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp),
                             textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFFE8EAED), fontSize = 15.sp),
@@ -273,7 +279,7 @@ fun StripWallScreen(initialUrl: String?) {
                             ),
                             keyboardActions = KeyboardActions(
                                 onGo = {
-                                    navigate(displayUrl)
+                                    navigate(displayUrl.text)
                                 }
                             ),
                         )
@@ -282,8 +288,8 @@ fun StripWallScreen(initialUrl: String?) {
 
                         // Go button
                         FilledTonalButton(
-                            onClick = { navigate(displayUrl) },
-                            enabled = displayUrl.isNotBlank() && backendStatus != BackendState.Offline,
+                            onClick = { navigate(displayUrl.text) },
+                            enabled = displayUrl.text.isNotBlank() && backendStatus != BackendState.Offline,
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
                             modifier = Modifier.height(36.dp),
                             shape = RoundedCornerShape(10.dp),
@@ -317,13 +323,13 @@ fun StripWallScreen(initialUrl: String?) {
                         IconButton(
                             onClick = {
                                 currentUrl = null
-                                displayUrl = ""
+                                displayUrl = TextFieldValue("")
                                 inputUrl = ""
                                 cleanupMode = false
                             },
                             modifier = Modifier.size(36.dp),
                         ) {
-                            Icon(Icons.Default.Home, "Home", tint = Color(0xFF9AA0A6))
+                            Icon(Icons.Default.Home, "Home", tint = MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }
@@ -469,9 +475,9 @@ fun StripWallScreen(initialUrl: String?) {
                                         // Extract real URL from proxy URL
                                         val realUrl = extractRealUrl(url)
                                         if (realUrl != null) {
-                                            displayUrl = realUrl
+                                            displayUrl = TextFieldValue(realUrl, TextRange(realUrl.length))
                                         } else if (url != null) {
-                                            displayUrl = url
+                                            displayUrl = TextFieldValue(url, TextRange(url.length))
                                         }
                                         // Re-apply padding for bottom toolbar
                                         view?.evaluateJavascript(
@@ -505,9 +511,9 @@ fun StripWallScreen(initialUrl: String?) {
                                         }
                                         val realUrl = extractRealUrl(url)
                                         if (realUrl != null) {
-                                            displayUrl = realUrl
+                                            displayUrl = TextFieldValue(realUrl, TextRange(realUrl.length))
                                         } else if (url != null) {
-                                            displayUrl = url
+                                            displayUrl = TextFieldValue(url, TextRange(url.length))
                                         }
                                     }
 
