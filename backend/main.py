@@ -107,3 +107,77 @@ async def root():
 @app.get("/ping")
 async def ping():
     return {"pong": True}
+
+
+# ── Bookmarklet installation page ──────────────────────────────────────
+BOOKMARKLET_CODE = "javascript:location.href='https://stripwall.amago.fyi/fetch?url='+encodeURIComponent(location.href)"
+BOOKMARKLET_PAGE = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>StripWall — Bookmarklet</title>
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #121212; color: #E8EAED; display: flex;
+    justify-content: center; align-items: center; min-height: 100vh;
+    padding: 24px;
+  }}
+  .card {{
+    background: #1E1E1E; border-radius: 16px; padding: 32px;
+    max-width: 480px; width: 100%; text-align: center;
+  }}
+  h1 {{ font-size: 24px; margin-bottom: 8px; color: #8AB4F8; }}
+  p {{ color: #B0B0B0; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }}
+  a.bookmarklet {{
+    display: inline-block; background: #8AB4F8; color: #0D1117;
+    text-decoration: none; font-weight: 700; font-size: 16px;
+    padding: 14px 32px; border-radius: 12px; margin-bottom: 24px;
+  }}
+  a.bookmarklet:hover {{ background: #9DC3FA; }}
+  .steps {{ text-align: left; }}
+  .step {{
+    background: #2D2D2D; border-radius: 10px; padding: 12px 16px;
+    margin-bottom: 10px; font-size: 13px; line-height: 1.5;
+  }}
+  .step strong {{ color: #8AB4F8; }}
+  code {{
+    background: #0D1117; color: #E8EAED; padding: 2px 6px;
+    border-radius: 4px; font-size: 12px; word-break: break-all;
+  }}
+  .url-box {{
+    background: #0D1117; border: 1px solid #3D3D3D; border-radius: 8px;
+    padding: 12px; font-size: 11px; word-break: break-all;
+    color: #9AA0A6; margin: 16px 0; user-select: all;
+  }}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>⚡ StripWall</h1>
+  <p>Un click para leer cualquier artículo sin paywalls, popups ni overlays.</p>
+
+  <a class="bookmarklet" href="{BOOKMARKLET_CODE}">📌 StripWall</a>
+
+  <div class="steps">
+    <div class="step"><strong>1.</strong> Arrastra el botón de arriba a tu barra de marcadores en desktop.<br><small>O copia el código abajo si estás en mobile.</small></div>
+    <div class="step"><strong>2.</strong> Cuando estés en un artículo con paywall, toca el bookmarklet.</div>
+    <div class="step"><strong>3.</strong> ¡Listo! El artículo se abre limpio en una pestaña.</div>
+  </div>
+
+  <div class="url-box">{BOOKMARKLET_CODE}</div>
+
+  <p style="font-size:12px;color:#5F6368">
+    Código: crea un bookmark y pega eso como URL.<br>
+    Funciona en Chrome, Safari, Firefox, Samsung Internet.
+  </p>
+</div>
+</body>
+</html>"""
+
+
+@app.get("/bookmark", response_class=HTMLResponse)
+async def bookmark_page():
+    return HTMLResponse(content=BOOKMARKLET_PAGE, status_code=200)
