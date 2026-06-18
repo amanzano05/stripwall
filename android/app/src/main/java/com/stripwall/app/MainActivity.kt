@@ -253,13 +253,13 @@ fun StripWallScreen(initialUrl: String?) {
                         OutlinedTextField(
                             value = displayUrl,
                             onValueChange = { displayUrl = it },
-                            placeholder = { Text("URL...", fontSize = 12.sp, color = Color(0xFF5F6368)) },
+                            placeholder = { Text("URL...", fontSize = 13.sp, color = Color(0xFF5F6368)) },
                             modifier = Modifier
                                 .weight(1f)
-                                .height(40.dp),
+                                .height(48.dp),
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp),
-                            textStyle = MaterialTheme.typography.bodySmall.copy(color = Color(0xFFE8EAED), fontSize = 12.sp),
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = Color(0xFFE8EAED), fontSize = 15.sp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF8AB4F8),
                                 unfocusedBorderColor = Color(0xFF3D3D3D),
