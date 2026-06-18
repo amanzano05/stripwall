@@ -171,11 +171,11 @@ ROOT_PAGE = """<!DOCTYPE html>
     <a href="#" class="browser" onclick="document.getElementById('browse-form').style.display='';document.getElementById('fetch-form').style.display='none';this.className='stripper';document.querySelector('.nav a.stripper').className='browser'">🌐 Browser</a>
   </div>
   <form id="fetch-form" action="/go" method="get" style="display:block">
-    <input type="url" name="url" placeholder="URL del artículo" required autofocus>
+    <input type="text" inputmode="url" name="url" placeholder="URL del artículo" required autofocus>
     <button type="submit">Go</button>
   </form>
   <form id="browse-form" action="/proxy" method="get" style="display:none">
-    <input type="url" name="url" placeholder="Navegá cualquier sitio" required>
+    <input type="text" inputmode="url" name="url" placeholder="Navegá cualquier sitio" required>
     <button type="submit">Ir</button>
   </form>
   <div class="footer">
@@ -242,7 +242,7 @@ BROWSE_PAGE = """<!DOCTYPE html>
   <h1>🌐 StripWall Browser</h1>
   <p>Navegá cualquier sitio. Cuando veas un popup, paywall o elemento molesto, tocá <strong>✂</strong> y eliminá lo que quieras tocándolo.</p>
   <form action="/proxy" method="get">
-    <input type="url" name="url" placeholder="https://ejemplo.com/articulo" required autofocus>
+    <input type="text" inputmode="url" name="url" placeholder="https://ejemplo.com/articulo" required autofocus>
     <button type="submit">Ir</button>
   </form>
   <div class="steps">
@@ -267,6 +267,7 @@ PROXY_TOOLBAR = """
 <div id="sw-toolbar">
   <a href="https://stripwall.amago.fyi/browse" id="sw-home" title="Volver">&#8962;</a>
   <input type="url" id="sw-url" value="__CURRENT_URL__" placeholder="Navegar a...">
+  <button id="sw-go">Ir</button>
   <button id="sw-btn">&#9986; Limpiar</button>
 </div>
 <style>
@@ -299,6 +300,10 @@ PROXY_TOOLBAR = """
     padding: 0 14px !important; font-size: 12px !important;
     font-weight: 700 !important; cursor: pointer !important;
     font-family: inherit !important;
+  }
+  #sw-toolbar #sw-go {
+    background: #2D2D2D !important; color: #E8EAED !important;
+    border: 1px solid #3D3D3D !important;
   }
   #sw-toolbar button.sw-active {
     background: #F28B82 !important; color: #fff !important;
@@ -334,17 +339,30 @@ PROXY_TOOLBAR = """
   var toolbar = document.getElementById('sw-toolbar');
   var urlInput = document.getElementById('sw-url');
   var btn = document.getElementById('sw-btn');
+  var goBtn = document.getElementById('sw-go');
   var cleanupOn = false;
   var lastRemoved = [];
 
-  // URL navigation
+  function navigate() {
+    var u = urlInput.value.trim();
+    if (!u) return;
+    if (!u.startsWith('http://') && !u.startsWith('https://')) u = 'https://' + u;
+    window.location.href = 'https://stripwall.amago.fyi/proxy?url=' + encodeURIComponent(u);
+  }
+
+  // URL navigation via Enter key
   urlInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
-      var u = urlInput.value.trim();
-      if (!u) return;
-      if (!u.startsWith('http://') && !u.startsWith('https://')) u = 'https://' + u;
-      window.location.href = 'https://stripwall.amago.fyi/proxy?url=' + encodeURIComponent(u);
+      e.preventDefault();
+      e.stopPropagation();
+      navigate();
     }
+  });
+
+  // URL navigation via Go button
+  goBtn.addEventListener('click', function(e) {
+    e.preventDefault();
+    navigate();
   });
 
   // Toggle cleanup
