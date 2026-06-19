@@ -402,31 +402,35 @@ fun StripWallScreen(initialUrl: String?) {
                             }
                         },
                     )
+
                     Spacer(Modifier.height(12.dp))
                     val btnInteractionSource = remember { MutableInteractionSource() }
-                    Box(
-                        modifier = Modifier
-                            .clickable(
-                                interactionSource = btnInteractionSource,
-                                indication = null,
-                                enabled = inputUrl.isNotBlank(),
-                                onClick = { navigate(inputUrl) },
-                            )
-                            .background(
-                                color = if (inputUrl.isNotBlank()) Color.White else Color(0xFF3D3D3D),
-                                shape = RoundedCornerShape(16.dp),
-                            )
-                            .padding(horizontal = 48.dp, vertical = 20.dp),
-                        contentAlignment = Alignment.Center,
+                    Surface(
+                        color = Color.White,
+                        shape = RoundedCornerShape(16.dp),
+                        tonalElevation = 0.dp,
+                        shadowElevation = 0.dp,
                     ) {
-                        if (backendStatus == BackendState.Checking && inputUrl.isNotBlank()) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.5.dp,
-                                color = Color(0xFF0D1117),
-                            )
-                        } else {
-                            Text("GO!", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0D1117))
+                        Box(
+                            modifier = Modifier
+                                .clickable(
+                                    interactionSource = btnInteractionSource,
+                                    indication = null,
+                                    enabled = inputUrl.isNotBlank(),
+                                    onClick = { navigate(inputUrl) },
+                                )
+                                .padding(horizontal = 48.dp, vertical = 20.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            if (backendStatus == BackendState.Checking && inputUrl.isNotBlank()) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.5.dp,
+                                    color = Color(0xFF0D1117),
+                                )
+                            } else {
+                                Text("GO!", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0D1117))
+                            }
                         }
                     }
 
