@@ -13,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -401,18 +402,18 @@ fun StripWallScreen(initialUrl: String?) {
                         },
                     )
                     Spacer(Modifier.height(12.dp))
-                    Button(
-                        onClick = { navigate(inputUrl) },
-                        enabled = inputUrl.isNotBlank(),
-                        shape = RoundedCornerShape(16.dp),
-                        contentPadding = PaddingValues(horizontal = 48.dp, vertical = 18.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White,
-                            disabledContainerColor = Color(0xFF3D3D3D),
-                            contentColor = Color(0xFF0D1117),
-                            disabledContentColor = Color(0xFF5F6368),
-                        ),
-                        elevation = null,
+                    Box(
+                        modifier = Modifier
+                            .clickable(
+                                enabled = inputUrl.isNotBlank(),
+                                onClick = { navigate(inputUrl) },
+                            )
+                            .background(
+                                color = if (inputUrl.isNotBlank()) Color.White else Color(0xFF3D3D3D),
+                                shape = RoundedCornerShape(16.dp),
+                            )
+                            .padding(horizontal = 48.dp, vertical = 18.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
                         if (backendStatus == BackendState.Checking && inputUrl.isNotBlank()) {
                             CircularProgressIndicator(
