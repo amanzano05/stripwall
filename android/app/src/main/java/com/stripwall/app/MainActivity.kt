@@ -126,6 +126,14 @@ fun StripWallScreen(initialUrl: String?) {
         val cleanUrl = url.trim().let {
             if (!it.startsWith("http")) "https://$it" else it
         }
+        // Load Google domains directly in the WebView (no proxy, google blocks server-side fetches)
+        if (isGoogleUrl(cleanUrl)) {
+            currentUrl = cleanUrl
+            displayUrl = TextFieldValue(cleanUrl, TextRange(cleanUrl.length))
+            webView?.loadUrl(cleanUrl)
+            focusManager.clearFocus()
+            return
+        }
         currentUrl = cleanUrl
         displayUrl = TextFieldValue(cleanUrl, TextRange(cleanUrl.length))
         val proxyUrl = buildProxyUrl(cleanUrl)
@@ -530,6 +538,11 @@ fun StripWallScreen(initialUrl: String?) {
                                             return false
                                         }
 
+                                        // Let Google domains load directly in the WebView (proxy can't fetch them)
+                                        if (isGoogleUrl(url)) {
+                                            return false
+                                        }
+
                                         // Intercept external URLs and route through proxy
                                         val proxyUrl = buildProxyUrl(url)
                                         view?.loadUrl(proxyUrl)
@@ -652,6 +665,11 @@ fun BackendIndicator(state: BackendState) {
 
 private fun getBackendHost(): String {
     return BuildConfig.BACKEND_HOST
+}
+
+private fun isGoogleUrl(url: String): Boolean {
+    val host = Uri.parse(url).host ?: return false
+    return host.contains("google.")
 }
 
 private fun buildProxyUrl(targetUrl: String): String {
