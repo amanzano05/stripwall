@@ -406,7 +406,7 @@ fun StripWallScreen(initialUrl: String?) {
                     Spacer(Modifier.height(12.dp))
                     val btnInteractionSource = remember { MutableInteractionSource() }
                     Surface(
-                        color = Color.White,
+                        color = Color(0xFF8AB4F8),
                         shape = RoundedCornerShape(16.dp),
                         tonalElevation = 0.dp,
                         shadowElevation = 0.dp,
@@ -429,7 +429,7 @@ fun StripWallScreen(initialUrl: String?) {
                                     color = Color(0xFF0D1117),
                                 )
                             } else {
-                                Text("GO!", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0D1117))
+                                Text("Ir", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0D1117))
                             }
                         }
                     }
