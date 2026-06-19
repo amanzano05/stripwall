@@ -70,13 +70,18 @@ async def _fetch(url: str) -> tuple[str, str]:
         return resp.text, str(resp.url)
 
 
-def _rewrite_links(html: str, base_url: str, proxy_base: str = PUBLIC_URL) -> str:
+def _rewrite_links(html: str, base_url: str, proxy_base: str = PUBLIC_URL, app_mode: bool = False) -> str:
     """Rewrite all <a href> links to route through our proxy.
 
     Skips anchors (#), javascript:, mailto:, tel:, data:.
     All other links — internal and external — go through the proxy
     so the user never leaves the proxy browser.
+
+    When app_mode=True, appends &app=1 so the app's native toolbar
+    isn't doubled by the server toolbar.
     """
+    app_suffix = "&app=1" if app_mode else ""
+
     def _replace_tag(match):
         full_tag = match.group(0)
         def _replace_href(m):
@@ -88,7 +93,7 @@ def _rewrite_links(html: str, base_url: str, proxy_base: str = PUBLIC_URL) -> st
             if href.startswith(proxy_base):
                 return m.group(0)
             absolute = urljoin(base_url, href)
-            new_href = f'{proxy_base}/proxy?url={quote(absolute, safe="")}'
+            new_href = f'{proxy_base}/proxy?url={quote(absolute, safe="")}{app_suffix}'
             return f'href={q}{new_href}{q}'
         return re.sub('href=(["\'])(.*?)\\1', _replace_href, full_tag)
 
@@ -512,7 +517,7 @@ async def proxy(url: str = Query(..., description="URL to browse through interac
             raw_html += toolbar
 
     # ── Rewrite links to stay inside the proxy ──
-    raw_html = _rewrite_links(raw_html, final_url)
+    raw_html = _rewrite_links(raw_html, final_url, app_mode=hide_toolbar)
 
     return HTMLResponse(content=raw_html)
 

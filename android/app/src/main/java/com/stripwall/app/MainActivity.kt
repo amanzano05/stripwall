@@ -284,6 +284,23 @@ fun StripWallScreen(initialUrl: String?) {
                                     navigate(displayUrl.text)
                                 }
                             ),
+                            trailingIcon = {
+                                if (displayUrl.text.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = {
+                                            displayUrl = TextFieldValue("")
+                                        },
+                                        modifier = Modifier.size(24.dp),
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Close,
+                                            "Clear",
+                                            tint = Color(0xFF9AA0A6),
+                                            modifier = Modifier.size(18.dp),
+                                        )
+                                    }
+                                }
+                            },
                         )
 
                         Spacer(Modifier.width(4.dp))
