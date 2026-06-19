@@ -403,19 +403,27 @@ fun StripWallScreen(initialUrl: String?) {
                     Spacer(Modifier.height(12.dp))
                     Button(
                         onClick = { navigate(inputUrl) },
-                        enabled = inputUrl.isNotBlank() && backendStatus != BackendState.Offline,
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 32.dp, vertical = 14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8AB4F8)),
+                        enabled = inputUrl.isNotBlank(),
+                        shape = RoundedCornerShape(16.dp),
+                        contentPadding = PaddingValues(horizontal = 48.dp, vertical = 18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.White,
+                            disabledContainerColor = Color(0xFF3D3D3D),
+                            contentColor = Color(0xFF0D1117),
+                            disabledContentColor = Color(0xFF5F6368),
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 6.dp,
+                        ),
                     ) {
-                        if (backendStatus == BackendState.Checking) {
+                        if (backendStatus == BackendState.Checking && inputUrl.isNotBlank()) {
                             CircularProgressIndicator(
-                                modifier = Modifier.size(18.dp),
-                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.5.dp,
                                 color = Color(0xFF0D1117),
                             )
                         } else {
-                            Text("Ir", fontWeight = FontWeight.Bold, color = Color(0xFF0D1117))
+                            Text("Ir", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0D1117))
                         }
                     }
 
