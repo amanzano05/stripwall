@@ -412,9 +412,7 @@ fun StripWallScreen(initialUrl: String?) {
                             contentColor = Color(0xFF0D1117),
                             disabledContentColor = Color(0xFF5F6368),
                         ),
-                        elevation = ButtonDefaults.buttonElevation(
-                            defaultElevation = 6.dp,
-                        ),
+                        elevation = null,
                     ) {
                         if (backendStatus == BackendState.Checking && inputUrl.isNotBlank()) {
                             CircularProgressIndicator(
@@ -423,7 +421,7 @@ fun StripWallScreen(initialUrl: String?) {
                                 color = Color(0xFF0D1117),
                             )
                         } else {
-                            Text("Ir", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0D1117))
+                            Text("GO!", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF0D1117))
                         }
                     }
 
