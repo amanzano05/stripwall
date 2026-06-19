@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -402,9 +403,12 @@ fun StripWallScreen(initialUrl: String?) {
                         },
                     )
                     Spacer(Modifier.height(12.dp))
+                    val btnInteractionSource = remember { MutableInteractionSource() }
                     Box(
                         modifier = Modifier
                             .clickable(
+                                interactionSource = btnInteractionSource,
+                                indication = null,
                                 enabled = inputUrl.isNotBlank(),
                                 onClick = { navigate(inputUrl) },
                             )
@@ -412,7 +416,7 @@ fun StripWallScreen(initialUrl: String?) {
                                 color = if (inputUrl.isNotBlank()) Color.White else Color(0xFF3D3D3D),
                                 shape = RoundedCornerShape(16.dp),
                             )
-                            .padding(horizontal = 48.dp, vertical = 18.dp),
+                            .padding(horizontal = 48.dp, vertical = 20.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         if (backendStatus == BackendState.Checking && inputUrl.isNotBlank()) {
